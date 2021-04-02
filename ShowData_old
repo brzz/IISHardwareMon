@@ -1,0 +1,353 @@
+﻿<%@ Page Language="C#" AutoEventWireup="true" CodeFile="ShowData.aspx.cs" Inherits="ShowData" %>
+
+<!DOCTYPE html>
+<html style="height: 100%">
+<head>
+    <meta charset="utf-8">
+</head>
+<body style="height: 100%; margin: 0">
+    <form id="form1"  style="height: 100%; margin: 0" runat="server">
+    <script src="js/jquery-3.1.0.min.js"></script>
+    <script src="js/ProExtend.js"></script>
+        
+    <script>
+        function HashTable() {
+        var size = 0;
+        var entry = new Object();
+        this.add = function (key, value) {
+        if (!this.containsKey(key)) {
+            size++;
+        }
+        entry[key] = value;
+        }
+    this.getValue = function (key) {
+        return this.containsKey(key) ? entry[key] : null;
+    }
+    this.remove = function (key) {
+        if (this.containsKey(key) && (delete entry[key])) {
+            size--;
+        }
+    }
+    this.containsKey = function (key) {
+        return (key in entry);
+    }
+    this.containsValue = function (value) {
+        for (var prop in entry) {
+            if (entry[prop] == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+    this.getValues = function () {
+        var values = new Array();
+        for (var prop in entry) {
+            values.push(entry[prop]);
+        }
+        return values;
+    }
+    this.getKeys = function () {
+        var keys = new Array();
+        for (var prop in entry) {
+            keys.push(prop);
+        }
+        return keys;
+    }
+    this.getSize = function () {
+        return size;
+    }
+    this.clear = function () {
+        size = 0;
+        entry = new Object();
+    }
+}
+            
+        </script>
+
+    <script>
+        var allsetanddata = new HashTable();
+    
+        var raw;
+        var lasttime;
+        var maxdata; var mindata;
+        var queryType = '<%="Temperature"%>';
+        var queryName = '<%="CPU Package"%>';
+        var RequestNumb = 240;
+        
+        
+        
+        //var datx = new Array(); //x-y图需要 time图不用
+        var daty = new Array();
+
+        function ConvertJsontoArrayWithDate(jsonarry, arry) {
+            jsonarry.forEach(function (value, index, array) {
+                var t = new Array();
+                t.push(parseInt(value.InsertTime + '000'));
+                t.push(value.Value)
+                arry.push(t);
+                //datx.push(value.InsertTime);
+            });
+        }
+
+        function ConvertJsontoArray(jsonarry, arry) {
+            jsonarry.forEach(function (value, index, array) {
+                arry.push(value.Value);
+                //datx.push(value.InsertTime);
+            });
+        }
+
+
+        function Getdata(counter) {
+            myChart.showLoading(); //loading动画
+            //$.ajaxSettings.async = false;//同步加载ajax，防止在加载AJAX时候EASYUI已经开始加载导致数据不对
+            ////Temperature
+            //CPU Package
+            $.ajax({
+                type: "POST",
+                url: "ShowData.aspx/GetData",
+                data: "{ getCount: '" + counter + "',Type:\"" + queryType + "\",Name:\"" + queryName + "\" }", //可选参数
+                dataType: "json",
+                contentType: 'application/json;charset=utf-8', // 设置请求头信息
+                success: function (data) {
+                    myChart.hideLoading();
+
+                    raw = new Array();
+                    lasttime = data.d.rows[data.d.rows.length - 1].InsertTime;
+                    ConvertJsontoArrayWithDate(data.d.rows, daty);
+                    ConvertJsontoArray(data.d.rows, raw);
+
+                    var max = raw.max();
+                    var min = raw.min();
+                    maxdata = GetNearbyNumbMax(max, min, 0.2);
+                    mindata = GetNearbyNumbMin(max, min, 0.2)
+
+                    // 填入数据
+                    myChart.setOption({
+                        //xAxis: {
+                        //    data: datx
+                        //},
+                        yAxis: {
+                            //Y轴设置
+                            type: 'value',
+                            //min: maxdata,
+                            //max: mindata,
+                            axisLabel: {
+                                formatter: '{value} °C'
+                            }
+                        },
+                        // 填入数据
+                        series: [{
+                            type: 'line',
+                            // 根据名字对应到相应的系列
+                            name: '温度',
+                            data: daty
+                        }]
+                    });
+                },
+
+                error: function (errorMsg) {
+                    //请求失败时执行该函数
+                    alert("请求数据失败!");
+                    myChart.hideLoading();
+                }
+            }
+            );
+
+            //$.ajaxSettings.async = true;//异步加载ajax
+        }
+
+
+        function GetOneDataandPush() {
+            $.ajax({
+                type: "POST",
+                url: "ShowData.aspx/GetData",
+                data: "{ getCount: '1',Type:\"" + queryType + "\",Name:\"" + queryName + "\" }", //可选参数
+                dataType: "json",
+                contentType: 'application/json;charset=utf-8', // 设置请求头信息
+                success: function (data) {
+                    var rowtime = data.d.rows[data.d.rows.length - 1].InsertTime;
+                    if (rowtime > lasttime) {
+                        ConvertJsontoArrayWithDate(data.d.rows, daty);
+                        lasttime = rowtime;
+                        // 填入数据
+                        myChart.setOption({
+                            series: [{
+                                type: 'line',
+                                // 根据名字对应到相应的系列
+                                name: '温度',
+                                data: daty
+                            }]
+                        });
+                    }
+                },
+
+                
+
+                error: function (errorMsg) {
+                    //请求失败时执行该函数
+                    alert("请求数据失败!");
+                    myChart.hideLoading();
+                }
+            }
+           );
+        }
+
+
+        function flushtable() {
+            daty = [];
+            myChart.setOption(option, true)
+            RequestNumb = $('#Select1').val();
+            queryType = $('#DropDownList1').val();
+            queryName = $('#DropDownList2').val();
+            Getdata(RequestNumb);
+        }
+    </script>
+
+    <script type="text/javascript" src="js/echarts.js"></script>
+
+        显示设备：
+        <select id="DropDownList1" runat="server" >
+        </select>
+        <select id="DropDownList2" runat="server" >
+        </select>
+        <select id="Select1" runat="server" >
+            <option value ="240">240</option>
+            <option value ="480">480</option>
+            <option value ="1440">1440</option>
+            <option value ="2880">2880</option>
+            <option value ="5760">5760</option>
+            <option value ="40320">40320</option>
+        </select>
+        <input id="Button2" type="button" value="确定" onclick="flushtable()" />
+        <div id="container" style="height: 90%"></div>
+
+    <script type="text/javascript">
+        var dom = document.getElementById("container");
+        var myChart = echarts.init(dom);
+        var app = {};
+        option = null;
+        option = {
+            title: {
+                text: '硬件温度变化',
+                subtext: '物理机器'
+            },
+            tooltip: {
+                trigger: 'axis'
+            },
+            legend: {
+                data: ['最高温']//, '最低温']
+            },
+            toolbox: {
+                show: true,
+                feature: {
+                    dataZoom: {
+                        yAxisIndex: 'none'
+                    },
+                    dataView: { readOnly: false },
+                    magicType: { type: ['line', 'bar'] },
+                    restore: {},
+                    saveAsImage: {}
+                }
+            },
+            xAxis: {
+                //X轴设置
+                type: 'time',//'category',
+                axisTick: {
+                    alignWithLabel: true
+                },
+                //axisLine: {
+               //     onZero: false,
+               // },
+                //boundaryGap: true,
+                //data: []
+            },
+            dataZoom: [{
+                //X轴滚动条
+                type: 'slider',
+                show: true,
+                xAxisIndex: [0],
+                left: '9%',
+                bottom: -5,
+                start: 0,
+                end: 100 //初始化滚动条位置
+            }],
+
+            yAxis: {
+                //Y轴设置
+                type: 'value',
+                scale: true,//自动调节
+                boundaryGap: [0.15, 0.15], //下方保留0.15  上方保留0.15
+                //min: 10,
+                //max:90,
+                axisLabel: {
+                    formatter: '{value} °C'
+                }
+            },
+            series: [
+                {
+                    name: '最高温',
+                    type: 'line',
+                    //smooth: true,//平滑
+                    symbol: "none",//空心点
+                    data: [],
+                    markPoint: {
+                        data: [
+                            { type: 'max', name: '最大值' },
+                            { type: 'min', name: '最小值' }
+                        ]
+                    },
+                    markLine: {
+                        data: [
+                            { type: 'average', name: '平均值' }
+                        ]
+                    }
+                },
+
+                //{
+                //    name:'最低温',
+                //    type:'line',
+                //    data:[1, -2, 2, 5, 3, 2, 0],
+                //    markPoint: {
+                //        data: [
+                //            {name: '周最低', value: -2, xAxis: 1, yAxis: -1.5}
+                //        ]
+                //    },
+                //    markLine: {
+                //        data: [
+                //            {type: 'average', name: '平均值'},
+                //            [{
+                //                symbol: 'none',
+                //                x: '90%',
+                //                yAxis: 'max'
+                //            }, {
+                //                symbol: 'circle',
+                //                label: {
+                //                    normal: {
+                //                        position: 'start',
+                //                        formatter: '最大值'
+                //                    }
+                //                },
+                //                type: 'max',
+                //                name: '最高点'
+                //            }]
+                //        ]
+                //    }
+                //}
+            ]
+        };
+
+        myChart.showLoading(); //loading动画
+
+        Getdata(RequestNumb);
+       // setInterval("GetOneDataandPush()", 15000);
+        
+        if (option && typeof option === "object") {
+            myChart.setOption(option, true);
+        }
+
+    </script>
+
+    </form>
+
+</body>
+</html>
